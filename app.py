@@ -40,7 +40,7 @@ system_prompt = """
             - If the user uploads context (PDF/image text), use it as the primary source.
             - If context is missing or insufficient, answer using general knowledge and clearly mention: "Answered using general knowledge (context insufficient)."
             - Do NOT repeat the uploaded text unless the user asks to extract it.
-            - If the user asks to solve a question paper, solve it step-by-step and give final answers clearly.
+            - If the user asks to solve a question paper, solve a step-by-step and give final answers clearly.
 
         Capabilities:
             - Explain concepts
@@ -55,8 +55,26 @@ system_prompt = """
 """
 
 MODEL = genai.GenerativeModel("gemini-2.5-flash")
-OCR_MODEL = genai.GenerativeModel("gemini-2.5-flash")   
+OCR_MODEL = genai.GenerativeModel("gemini-2.5-flash")
 EMBED_MODEL = "text-embedding-004"
+
+
+def safe_extract_text(resp) -> str:
+    """Safer than resp.text (sometimes resp.text throws / returns empty)."""
+    try:
+        out = []
+        if getattr(resp, "candidates", None):
+            cand = resp.candidates[0]
+            content = getattr(cand, "content", None)
+            if content and getattr(content, "parts", None):
+                for p in content.parts:
+                    t = getattr(p, "text", None)
+                    if t:
+                        out.append(t)
+        return "\n".join(out).strip()
+    except Exception:
+        return ""
+
 
 def clean_text(t: str) -> str:
     if not t:
@@ -65,6 +83,7 @@ def clean_text(t: str) -> str:
     t = re.sub(r"[\x00-\x1F\x7F-\x9F]", " ", t)
     t = re.sub(r"[ \t]+", " ", t)
     return t.strip()
+
 
 def chunk_text(text, chunk_size=900, overlap=150):
     words = text.split()
@@ -81,6 +100,7 @@ def encode_jpeg(img: Image.Image) -> bytes:
     buf = BytesIO()
     img.save(buf, format="JPEG", quality=60, optimize=True)
     return buf.getvalue()
+
 
 def _hash_text(text: str) -> str:
     return hashlib.sha1(text[:8000].encode("utf-8", "ignore")).hexdigest()
@@ -113,26 +133,28 @@ def add_chunks_to_kb(chunks, filename, doc_id, page=None):
     vecs = embed_texts(chunks)
     collection.add(ids=ids, documents=chunks, metadatas=metas, embeddings=vecs)
 
-def ocr_single_page(img_bytes):
+
+def ocr_single_page(img_bytes: bytes) -> str:
     try:
-        r = OCR_MODEL.generate_content([
-            "Extract ALL handwritten or printed text EXACTLY as it appears. "
-            "Preserve line breaks, spacing, equations, symbols and question numbers. "
-            "Do NOT correct grammar or rewrite anything. "
-            "If handwriting is unclear, guess only if 90% confidence and mark uncertain letters with (?)",
-            {"mime_type": "image/jpeg", "data": img_bytes}
-        ])
-        return (getattr(r, "text", "") or "").strip()
-    except Exception:
-        logging.exception("OCR failed")
+        r = OCR_MODEL.generate_content(
+            [
+                "Extract ALL text EXACTLY as it appears. Preserve line breaks and symbols.",
+                {"mime_type": "image/jpeg", "data": img_bytes}
+            ],
+            request_options={"timeout": 60}
+        )
+        return clean_text(safe_extract_text(r))
+    except Exception as e:
+        logging.exception(f"OCR failed: {e}")
         return ""
+
 
 def process_pdf_fast(pdf_bytes, filename, doc_id):
     pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
     total_pages = pdf.page_count
     total = min(total_pages, 10)
 
-    logging.info(f"📘 Processing {total}/{total_pages} pages")
+    logging.info(f"Processing {total}/{total_pages} pages")
 
     def extract_text(i):
         try:
@@ -168,7 +190,6 @@ def process_pdf_fast(pdf_bytes, filename, doc_id):
                 ocr_results[i] = txt
 
         merged = "\n".join(ocr_results)
-
     else:
         merged = "\n".join(clean_text(t) for t in all_text if t.strip())
 
@@ -186,59 +207,32 @@ def process_pdf_fast(pdf_bytes, filename, doc_id):
 
     collection.add(ids=ids, documents=chunks, metadatas=metas, embeddings=vecs)
 
+
 @app.route("/upload", methods=["POST"])
 def upload_file():
-    file = request.files.get("file")
-    if not file:
-        return jsonify({"error": "No file uploaded"}), 400
+    try:
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"error": "No file uploaded"}), 400
 
-    filename = file.filename.lower()
-    ext = os.path.splitext(filename)[1]
+        filename = (file.filename or "").lower()
+        ext = os.path.splitext(filename)[1]
+        file_bytes = file.read()
 
-    ALLOWED_IMAGES = {".jpg", ".jpeg", ".png", ".webp"}
-    ALLOWED_PDF = {".pdf"}
+        if not file_bytes:
+            return jsonify({"error": "Empty file"}), 400
 
-    doc_id = uuid.uuid4().hex
-    file_bytes = file.read()
+        doc_id = uuid.uuid4().hex
 
+        if ext == ".pdf":
+            process_pdf_fast(file_bytes, filename, doc_id)
+            return jsonify({"message": "PDF processed", "file_id": doc_id})
 
-    if ext in ALLOWED_IMAGES:
-        try:
-            img = Image.open(BytesIO(file_bytes))
-        except:
-            return jsonify({"error": "Invalid image"}), 400
-
-        img = img.convert("RGB")
-
-        pdf_buffer = BytesIO()
-        img.save(pdf_buffer, format="PDF")
-        pdf_bytes = pdf_buffer.getvalue()
-
-        process_pdf_fast(pdf_bytes, filename + ".pdf", doc_id)
-
-        return jsonify({
-            "message": "Image converted to PDF and processed",
-            "file_id": doc_id
-        })
-
-    elif ext in ALLOWED_PDF:
-        try:
-            pdf = fitz.open(stream=file_bytes, filetype="pdf")
-        except:
-            return jsonify({"error": "Invalid PDF"}), 400
-
-        if pdf.page_count > 10:
-            return jsonify({"error": "PDF > 10 pages"}), 400
-
-        process_pdf_fast(file_bytes, filename, doc_id)
-
-        return jsonify({
-            "message": "PDF processed",
-            "file_id": doc_id
-        })
-
-    else:
         return jsonify({"error": "Unsupported file type"}), 400
+
+    except Exception as e:
+        logging.exception("UPLOAD FAILED")
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -251,11 +245,13 @@ def home():
 
         if not user_input:
             return jsonify({"message": "Please enter a valid question."})
+
         try:
             qvec = _cached_embed_single(user_input)
         except Exception as e:
             logging.exception("Embedding failed")
             return jsonify({"message": f"Embedding error: {str(e)}"}), 500
+
         try:
             if doc_id:
                 res = collection.query(
@@ -271,12 +267,9 @@ def home():
                 docs_list = res.get("documents")
                 if docs_list and len(docs_list) > 0 and docs_list[0]:
                     docs = docs_list[0][:4]
+
             context = "\n\n".join((d or "")[:6000] for d in docs).strip()
 
-            if res.get("documents") and res["documents"]:
-                docs = res["documents"][0][:4]
-
-            context = "\n\n".join(d[:6000] for d in docs).strip()
         except Exception as e:
             logging.exception("Chroma query failed")
             return jsonify({"message": f"KB query error: {str(e)}"}), 500
@@ -286,24 +279,24 @@ def home():
                 User Query: {user_input}
                 Context: {context}
                 Rules:
-                - The Context contains the question paper / notes.
-                - Your job is to ANSWER/SOLVE the questions provided.
-                - If the Context is a question paper, solve each question step-by-step and give final answers clearly.
-                - If a question is missing required data, state what is missing and still provide the general method/formula.
-                - Format the response in Markdown with headings and numbering.
-                - Use LaTeX for equations like $$...$$.
+                    - The Context contains the question paper / notes.
+                    - Your job is to ANSWER/SOLVE the questions provided.
+                    - If the Context is a question paper, solve each question step-by-step and give final answers clearly.
+                    - If a question is missing required data, state what is missing and still provide the general method/formula.
+                    - Format the response in Markdown with headings and numbering.
+                    - Use LaTeX for equations like $$...$$.
             """
-
         else:
             prompt = f"""
                 User Query: {user_input}
                 Rules:
-                - No uploaded context is available.
-                - Answer from general knowledge.
-                - Format in Markdown with headings, bullet points, and practical steps.
-                - If it's a career question, give a roadmap and skills list.
-                - Use LaTeX for equations ($$...$$) if needed.
-            """
+                    - No uploaded context is available.
+                    - Answer from general knowledge.
+                    - Format in Markdown with headings, bullet points, and practical steps.
+                    - If it's a career question, give a roadmap and skills list.
+                    - Use LaTeX for equations ($$...$$) if needed.
+                """
+
         try:
             r = MODEL.generate_content([system_prompt, prompt])
 
@@ -330,10 +323,15 @@ def home():
 
     return render_template("index.html")
 
+
 @app.route("/reset", methods=["POST"])
 def reset():
-    chroma_client.delete_collection("aura_docs")
     global collection
+    try:
+        chroma_client.delete_collection("aura_docs")
+    except Exception:
+        logging.exception("delete_collection failed (ignored)")
+
     collection = chroma_client.get_or_create_collection("aura_docs")
     return jsonify({"message": "Knowledge base reset"})
 
