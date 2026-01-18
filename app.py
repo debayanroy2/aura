@@ -173,7 +173,7 @@ def process_pdf_fast(pdf_bytes, filename, doc_id):
     has_text_layer = any(t.strip() for t in all_text)
 
     if not has_text_layer:
-        logging.info("⚠ No text layer → Running OCR (FAST MODE)")
+        logging.info("No text layer → Running OCR (FAST MODE)")
 
         def ocr_page(i):
             page = pdf[i]
