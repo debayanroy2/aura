@@ -1,9 +1,7 @@
-Flask==3.1.2
-google-generativeai==0.8.5
-gunicorn==23.0.0
-python-dotenv==1.1.1
-chromadb==1.2.1
-hf_xet==1.2.0
-pillow==10.0.0
-PyMuPDF==1.23.8
-numpy<2
+flask==3.0.0
+python-dotenv==1.0.0
+google-genai==1.0.0
+chromadb==0.4.22
+Pillow==10.2.0
+PyMuPDF==1.23.26
+gunicorn==21.2.0
