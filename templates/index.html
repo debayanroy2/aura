@@ -1,28 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#05070d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>AURA — Academic Unified Research Agent</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- KaTeX for Math Rendering -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  
+  <!-- Marked.js for Markdown -->
+  <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- Styles and Scripts -->
   <link rel="stylesheet" href="{{ url_for('static', filename='stylesheets/stylesheet.css') }}">
   <script defer src="{{ url_for('static', filename='scripts/script.js') }}"></script>
 </head>
 
 <body>
-  <div class="grid"></div>
-
   <div class="wrap">
-    <div class="topbar">
+    <!-- Header -->
+    <header class="header">
       <div class="brand">
-        <div class="logo" aria-hidden="true">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+        <div class="logo" aria-label="AURA Logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
             <path d="M12 2a7 7 0 0 0-4 12.7V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.3A7 7 0 0 0 12 2Z"
                   stroke="rgba(39,214,255,0.95)" stroke-width="1.6" stroke-linecap="round"/>
             <path d="M10 21h4" stroke="rgba(180,92,255,0.95)" stroke-width="1.6" stroke-linecap="round"/>
@@ -31,86 +41,98 @@
         </div>
         <div class="brandText">
           <div class="title">AURA</div>
-          <div class="sub">Academic Unified Research Agent</div>
+          <div class="subtitle">Academic Research Agent</div>
         </div>
       </div>
 
-      <div class="actions">
-        <div class="pill">
-          <span style="width:8px;height:8px;border-radius:50%;background:rgba(39,214,255,0.9);box-shadow:0 0 12px rgba(39,214,255,0.6)"></span>
+      <div class="headerActions">
+        <div class="statusPill">
+          <span class="statusDot"></span>
           <span id="statusText">Ready</span>
         </div>
-        <button class="btn kbToggleBtn" id="kbToggleBtn">KB Upload</button>
-        <button class="btn" id="resetBtn">Reset KB</button>
-        <button class="btn btnPrimary" id="clearChatBtn">Clear Chat</button>
+        <button class="btn btnDanger" id="resetBtn" title="Reset Knowledge Base">Reset KB</button>
+        <button class="btn" id="clearChatBtn" title="Clear Chat History">Clear</button>
       </div>
-    </div>
+    </header>
 
-    <div class="grid2">
-      <div class="card">
-        <div class="cardInner">
-          <div class="panelTitle">
-            <h3>Knowledge Base Upload</h3>
-            <span class="hint">PDF / Image</span>
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Upload Panel (Collapsible) -->
+      <div class="uploadPanel" id="uploadPanel">
+        <div class="uploadContent">
+          <div class="uploadTitle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" 
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Upload Document
           </div>
 
           <div class="dropzone" id="dropzone">
             <div class="dzIcon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M12 16V4" stroke="rgba(39,214,255,0.95)" stroke-width="1.8" stroke-linecap="round"/>
-                <path d="M7 9l5-5 5 5" stroke="rgba(39,214,255,0.95)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" stroke="rgba(180,92,255,0.95)" stroke-width="1.8" stroke-linecap="round"/>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M12 16V4M7 9l5-5 5 5" stroke="rgba(39,214,255,0.95)" 
+                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" 
+                      stroke="rgba(180,92,255,0.95)" stroke-width="1.8" stroke-linecap="round"/>
               </svg>
             </div>
-            <div class="dzText">Drag & drop file here</div>
-            <div class="dzSub">or click to choose a PDF/image. We’ll OCR + index it into your session knowledge base.</div>
-            <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.webp" hidden>
+            <div class="dzText">Tap to upload or drag & drop</div>
+            <div class="dzSub">PDF only • Max 10 pages • We'll OCR and index it</div>
+            <input type="file" id="fileInput" accept=".pdf" hidden>
           </div>
 
-          <div style="height:12px"></div>
-
-          <div class="progress" title="Upload progress">
-            <div class="bar" id="bar"></div>
-          </div>
-
-          <div style="height:12px"></div>
-
-          <div class="fileRow">
-            <div class="fileMeta">
-              <div class="fileName" id="fileName">No file uploaded</div>
-              <div class="fileId" id="fileId">file_id: —</div>
+          <div class="fileInfo" id="fileInfo" style="display: none;">
+            <div class="fileName" id="fileName">No file</div>
+            <div id="fileId" style="margin-top: 4px;">file_id: —</div>
+            <div class="progress">
+              <div class="progressBar" id="progressBar"></div>
             </div>
-            <button class="btn" id="uploadBtn">Upload</button>
           </div>
 
-          <div style="height:12px"></div>
-          <div class="small">
-            Tip: We only accept pdfs of maximum <b>≤10 pages</b> and not more than that.
+          <div class="uploadActions">
+            <button class="btn" id="uploadBtn">Upload & Index</button>
+            <button class="btn btnDanger" id="cancelUploadBtn" style="display: none;">Cancel</button>
           </div>
         </div>
       </div>
 
-      <div class="card chat">
-        <div class="chatHeader">
-          <div class="left">
-            <div class="h1">Ask AURA</div>
-            <div class="h2">Answers based on your uploaded context + query</div>
-          </div>
-          <div class="pill">
-            <span style="width:8px;height:8px;border-radius:50%;background:rgba(180,92,255,0.9);box-shadow:0 0 12px rgba(180,92,255,0.55)"></span>
-            <span id="kbBadge">KB: empty</span>
-          </div>
+      <!-- Upload Toggle Button -->
+      <div class="uploadToggle" id="uploadToggle">
+        <div class="uploadToggleText">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke-width="2" stroke-linecap="round"/>
+            <path d="M17 8l-5-5-5 5M12 3v12" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Upload Document
         </div>
-
-        <div class="chatBody" id="chatBody"></div>
-
-        <div class="chatFooter">
-          <textarea id="prompt" placeholder="Type your question... (Shift+Enter for new line)"></textarea>
-          <button class="btn btnPrimary sendBtn" id="sendBtn">Send</button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="kbStatus" id="kbBadge">KB: Empty</span>
+          <svg class="uploadToggleIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M6 9l6 6 6-6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
         </div>
       </div>
-    </div>
+
+      <!-- Chat Container -->
+      <div class="chatContainer">
+        <div class="chatBody" id="chatBody">
+          <!-- Chat messages will appear here -->
+        </div>
+
+        <!-- Chat Input -->
+        <div class="chatInput">
+          <div class="inputWrapper">
+            <textarea 
+              id="promptInput" 
+              placeholder="Ask AURA anything... (Shift+Enter for new line)"
+              rows="1"
+            ></textarea>
+          </div>
+          <button class="btn sendBtn" id="sendBtn">Send</button>
+        </div>
+      </div>
+    </main>
   </div>
-
 </body>
 </html>
